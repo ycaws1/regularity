@@ -164,7 +164,14 @@ export default function RegularityApp() {
     <div className="min-h-screen bg-gradient-to-br from-amber-50 to-teal-50 pb-20">
       <nav className="bg-white shadow-sm border-b border-teal-100">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-teal-700">Regularity</h1>
+          <div className="flex items-center gap-3">
+            <img 
+              src="/android-chrome-192x192.png"
+              alt="Regularity App Icon" 
+              className="w-10 h-10 rounded-xl shadow-md"
+            />
+            <h1 className="text-2xl font-bold text-teal-700">Regularity</h1>
+          </div>
           <button
             onClick={async () => {
               await supabase.auth.signOut();
@@ -258,6 +265,13 @@ function AuthScreen({ onAuthSuccess }) {
     <div className="min-h-screen bg-gradient-to-br from-amber-50 to-teal-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <img 
+              src="/android-chrome-192x192.png"
+              alt="Regularity App Icon" 
+              className="w-20 h-20 rounded-2xl shadow-lg"
+            />
+          </div>
           <h1 className="text-3xl font-bold text-teal-700 mb-2">Regularity</h1>
           <p className="text-gray-600">Track your digestive health</p>
         </div>
