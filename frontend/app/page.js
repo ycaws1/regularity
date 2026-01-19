@@ -165,9 +165,11 @@ export default function RegularityApp() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('home');
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   useEffect(() => {
     checkUser();
+    checkPasswordRecovery();
   }, []);
 
   const checkUser = async () => {
@@ -176,12 +178,28 @@ export default function RegularityApp() {
     setLoading(false);
   };
 
+  const checkPasswordRecovery = () => {
+    // Check if the URL contains a password recovery hash
+    const hash = window.location.hash;
+    if (hash && hash.includes('type=recovery')) {
+      setIsPasswordRecovery(true);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-amber-50 to-teal-50">
         <div className="text-teal-600 text-xl">Loading...</div>
       </div>
     );
+  }
+
+  if (isPasswordRecovery) {
+    return <PasswordResetScreen onResetComplete={() => {
+      setIsPasswordRecovery(false);
+      window.location.hash = '';
+      checkUser();
+    }} />;
   }
 
   if (!user) {
@@ -265,9 +283,11 @@ export default function RegularityApp() {
 // ============================================================================
 function AuthScreen({ onAuthSuccess }) {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -277,6 +297,7 @@ function AuthScreen({ onAuthSuccess }) {
       return;
     }
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
@@ -293,19 +314,51 @@ function AuthScreen({ onAuthSuccess }) {
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    if (e) e.preventDefault();
+    if (!email) {
+      setError('Please enter your email address');
+      return;
+    }
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      // Use environment variable for production URL, fallback to current origin for local dev
+      const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL
+        ? `${process.env.NEXT_PUBLIC_SITE_URL}`
+        : window.location.origin;
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectUrl,
+      });
+
+      if (error) throw error;
+      setSuccess('If an account exists with this email, you will receive a password reset link shortly.');
+      setEmail('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 to-teal-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <img 
+            <img
               src="/android-chrome-192x192.png"
-              alt="Regularity App Icon" 
+              alt="Regularity App Icon"
               className="w-20 h-20 rounded-2xl shadow-lg"
             />
           </div>
           <h1 className="text-3xl font-bold text-teal-700 mb-2">Regularity</h1>
-          <p className="text-gray-600">Track your digestive health</p>
+          <p className="text-gray-600">
+            {isForgotPassword ? 'Reset your password' : 'Track your digestive health'}
+          </p>
         </div>
 
         <div className="space-y-4">
@@ -315,19 +368,171 @@ function AuthScreen({ onAuthSuccess }) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSubmit(e)}
+              onKeyDown={(e) => e.key === 'Enter' && (isForgotPassword ? handleForgotPassword(e) : handleSubmit(e))}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
             />
           </div>
 
+          {!isForgotPassword && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmit(e)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              />
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-teal-50 text-teal-700 p-3 rounded-lg text-sm">
+              {success}
+            </div>
+          )}
+
+          <button
+            onClick={isForgotPassword ? handleForgotPassword : handleSubmit}
+            disabled={loading}
+            className="w-full bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+          >
+            {loading ? 'Please wait...' : (isForgotPassword ? 'Send Reset Link' : (isSignUp ? 'Sign Up' : 'Log In'))}
+          </button>
+        </div>
+
+        <div className="mt-6 text-center space-y-2">
+          {!isForgotPassword && (
+            <>
+              <button
+                onClick={() => {
+                  setIsForgotPassword(false);
+                  setIsSignUp(!isSignUp);
+                  setError('');
+                  setSuccess('');
+                }}
+                className="block w-full text-teal-600 hover:text-teal-700 text-sm"
+              >
+                {isSignUp ? 'Already have an account? Log in' : "Don't have an account? Sign up"}
+              </button>
+              <button
+                onClick={() => {
+                  setIsForgotPassword(true);
+                  setError('');
+                  setSuccess('');
+                }}
+                className="block w-full text-gray-600 hover:text-gray-700 text-sm"
+              >
+                Forgot password?
+              </button>
+            </>
+          )}
+          {isForgotPassword && (
+            <button
+              onClick={() => {
+                setIsForgotPassword(false);
+                setError('');
+                setSuccess('');
+              }}
+              className="block w-full text-teal-600 hover:text-teal-700 text-sm"
+            >
+              Back to log in
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// PASSWORD RESET SCREEN
+// ============================================================================
+function PasswordResetScreen({ onResetComplete }) {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handlePasswordReset = async (e) => {
+    if (e) e.preventDefault();
+
+    if (!newPassword || !confirmPassword) {
+      setError('Please enter both password fields');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+
+      alert('Password updated successfully!');
+      onResetComplete();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-teal-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <img
+              src="/android-chrome-192x192.png"
+              alt="Regularity App Icon"
+              className="w-20 h-20 rounded-2xl shadow-lg"
+            />
+          </div>
+          <h1 className="text-3xl font-bold text-teal-700 mb-2">Reset Password</h1>
+          <p className="text-gray-600">Enter your new password</p>
+        </div>
+
+        <form onSubmit={handlePasswordReset} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSubmit(e)}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              placeholder="At least 6 characters"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handlePasswordReset(e)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              placeholder="Re-enter your password"
             />
           </div>
 
@@ -338,22 +543,13 @@ function AuthScreen({ onAuthSuccess }) {
           )}
 
           <button
-            onClick={handleSubmit}
+            type="submit"
             disabled={loading}
             className="w-full bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
-            {loading ? 'Please wait...' : (isSignUp ? 'Sign Up' : 'Log In')}
+            {loading ? 'Updating...' : 'Update Password'}
           </button>
-        </div>
-
-        <div className="mt-6 text-center">
-          <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-teal-600 hover:text-teal-700 text-sm"
-          >
-            {isSignUp ? 'Already have an account? Log in' : "Don't have an account? Sign up"}
-          </button>
-        </div>
+        </form>
       </div>
     </div>
   );
