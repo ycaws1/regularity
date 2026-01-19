@@ -193,22 +193,26 @@ export default function RegularityApp() {
       <nav className="bg-white shadow-sm border-b border-teal-100">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img 
+            <img
               src="/android-chrome-192x192.png"
-              alt="Regularity App Icon" 
+              alt="Regularity App Icon"
               className="w-10 h-10 rounded-xl shadow-md"
             />
             <h1 className="text-2xl font-bold text-teal-700">Regularity</h1>
           </div>
-          <button
-            onClick={async () => {
-              await supabase.auth.signOut();
-              setUser(null);
-            }}
-            className="p-2 rounded-lg text-gray-600 hover:bg-gray-100"
-          >
-            <LogOut size={20} />
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-600 hidden sm:inline">Welcome back <strong>{user?.email}</strong>!</span>
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                setUser(null);
+              }}
+              className="p-2 rounded-lg text-gray-600 hover:bg-gray-100"
+              title="Log out"
+            >
+              <LogOut size={20} />
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -688,6 +692,7 @@ function TrendsView({ userId }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState(7);
+  const [hoveredBar, setHoveredBar] = useState(null);
 
   useEffect(() => {
     fetchLogs();
@@ -711,13 +716,13 @@ function TrendsView({ userId }) {
     startDate.setDate(startDate.getDate() - timeRange + 1);
 
     const dateMap = {};
-    
+
     for (let i = 0; i < timeRange; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
       const dateStr = formatDateForChart(date);
       const logDateStr = formatLogDate(date);
-      dateMap[dateStr] = { date: dateStr, hasLog: 0, logDate: logDateStr };
+      dateMap[dateStr] = { date: dateStr, hasLog: 0, logDate: logDateStr, count: 0 };
     }
 
     logs.forEach(log => {
@@ -726,6 +731,7 @@ function TrendsView({ userId }) {
         const dateStr = formatDateForChart(logDate);
         if (dateMap[dateStr]) {
           dateMap[dateStr].hasLog = 1;
+          dateMap[dateStr].count = log.count || 1;
         }
       }
     });
@@ -806,14 +812,29 @@ function TrendsView({ userId }) {
               {chartData.map((item, index) => (
                 <div
                   key={index}
-                  className={`flex-1 rounded-t transition-all duration-300 ${
-                    item.hasLog === 1 ? 'bg-teal-500' : 'bg-transparent'
-                  }`}
-                  style={{ 
-                    height: item.hasLog === 1 ? '100%' : '0%',
-                    minWidth: '4px'
-                  }}
-                />
+                  className="flex-1 relative h-full"
+                  style={{ minWidth: '4px' }}
+                >
+                  <div className="absolute bottom-0 left-0 right-0 flex items-end h-full">
+                    <div
+                      onMouseEnter={() => setHoveredBar(index)}
+                      onMouseLeave={() => setHoveredBar(null)}
+                      className={`w-full rounded-t transition-all duration-300 ${
+                        item.hasLog === 1 ? 'bg-teal-500 hover:bg-teal-600 cursor-pointer' : 'bg-transparent'
+                      }`}
+                      style={{
+                        height: item.hasLog === 1 ? '100%' : '0%'
+                      }}
+                    />
+                  </div>
+                  {hoveredBar === index && item.hasLog === 1 && (
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10 pointer-events-none">
+                      <div className="font-semibold">{item.logDate}</div>
+                      <div>Count: {item.count}</div>
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>
