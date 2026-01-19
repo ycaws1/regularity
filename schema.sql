@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS logs (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   log_date DATE NOT NULL,
+  count INTEGER DEFAULT 1 NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   UNIQUE(user_id, log_date)
 );
@@ -37,6 +38,9 @@ CREATE POLICY "Users can view own logs" ON logs
 
 CREATE POLICY "Users can insert own logs" ON logs
   FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own logs" ON logs
+  FOR UPDATE USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete own logs" ON logs
   FOR DELETE USING (auth.uid() = user_id);
