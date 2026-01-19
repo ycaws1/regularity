@@ -1,6 +1,6 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { Calendar, Settings, LogOut, Check, X, Bell, TrendingUp, Home } from 'lucide-react';
+import { Calendar, Settings, LogOut, Bell, TrendingUp, Home } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 // ============================================================================
@@ -74,7 +74,7 @@ const createMockSupabaseClient = () => {
           single: async () => {
             await new Promise(resolve => setTimeout(resolve, 200));
             if (table === 'logs') {
-              const newLog = { ...data, id: `log-${Date.now()}`, created_at: new Date().toISOString() };
+              const newLog = { ...data, id: `log-${Date.now()}`, created_at: new Date().toISOString(), count: data.count || 1 };
               mockLogs.push(newLog);
               return { data: newLog, error: null };
             }
@@ -98,6 +98,34 @@ const createMockSupabaseClient = () => {
       }),
       update: (data) => ({
         eq: (column, value) => ({
+          eq: (column2, value2) => ({
+            select: () => ({
+              execute: async () => {
+                await new Promise(resolve => setTimeout(resolve, 200));
+                if (table === 'logs') {
+                  const log = mockLogs.find(log => log.user_id === value && log.log_date === value2);
+                  if (log) {
+                    Object.assign(log, data);
+                    return { data: [log], error: null };
+                  }
+                }
+                return { data: [], error: null };
+              }
+            })
+          }),
+          select: () => ({
+            execute: async () => {
+              await new Promise(resolve => setTimeout(resolve, 200));
+              if (table === 'profiles') {
+                const profile = mockProfiles.find(p => p.id === value);
+                if (profile) {
+                  Object.assign(profile, data);
+                  return { data: [profile], error: null };
+                }
+              }
+              return { data: [], error: null };
+            }
+          }),
           execute: async () => {
             await new Promise(resolve => setTimeout(resolve, 200));
             if (table === 'profiles') {
@@ -336,6 +364,7 @@ function CalendarView({ userId }) {
   const [selectedDate, setSelectedDate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [threshold, setThreshold] = useState(3);
+  const [editCount, setEditCount] = useState(1);
 
   useEffect(() => {
     fetchLogs();
@@ -382,6 +411,11 @@ function CalendarView({ userId }) {
     return logs.some(log => log.log_date === dateStr);
   };
 
+  const getLogForDate = (day) => {
+    const dateStr = formatDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day));
+    return logs.find(log => log.log_date === dateStr);
+  };
+
   const formatDate = (date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -389,35 +423,63 @@ function CalendarView({ userId }) {
     return `${year}-${month}-${day}`;
   };
 
-  const toggleLog = async (day) => {
+  const addLog = async (day) => {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
     const dateStr = formatDate(date);
 
-    const existingLogs = logs.filter(log => log.log_date === dateStr);
+    const { data, error } = await supabase
+      .from('logs')
+      .insert({
+        user_id: userId,
+        log_date: dateStr,
+        count: 1
+      })
+      .select()
+      .single();
 
-    if (existingLogs.length > 0) {
-      await supabase
-        .from('logs')
-        .delete()
-        .eq('user_id', userId)
-        .eq('log_date', dateStr);
-
-      setLogs(logs.filter(log => log.log_date !== dateStr));
-    } else {
-      const { data, error } = await supabase
-        .from('logs')
-        .insert({
-          user_id: userId,
-          log_date: dateStr
-        })
-        .select()
-        .single();
-
-      if (!error && data) {
-        setLogs([...logs, data]);
-      }
+    if (!error && data) {
+      setLogs([...logs, data]);
     }
     setSelectedDate(null);
+    setEditCount(1);
+  };
+
+  const deleteLog = async (day) => {
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    const dateStr = formatDate(date);
+
+    await supabase
+      .from('logs')
+      .delete()
+      .eq('user_id', userId)
+      .eq('log_date', dateStr);
+
+    setLogs(logs.filter(log => log.log_date !== dateStr));
+    setSelectedDate(null);
+    setEditCount(1);
+  };
+
+  const updateLogCount = async (day) => {
+    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    const dateStr = formatDate(date);
+
+    const { data, error } = await supabase
+      .from('logs')
+      .update({ count: editCount })
+      .eq('user_id', userId)
+      .eq('log_date', dateStr)
+      .select();
+
+    if (error) {
+      console.error('Error updating log count:', error);
+      alert('Failed to update log count. Please check console for details.');
+      return;
+    }
+
+    // Refetch logs to ensure we have the latest data
+    await fetchLogs();
+    setSelectedDate(null);
+    setEditCount(1);
   };
 
   const getLastLogDate = () => {
@@ -457,15 +519,15 @@ function CalendarView({ userId }) {
   return (
     <div>
       {showAlert && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-          <Bell className="text-amber-600 mt-1" size={20} />
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
+          <Bell className="text-red-600 mt-1" size={20} />
           <div>
-            <h3 className="font-semibold text-amber-900">Constipation Alert</h3>
-            <p className="text-amber-800 text-sm">
+            <h3 className="font-semibold text-red-900">Constipation Alert</h3>
+            <p className="text-red-800 text-sm">
               It's been <strong>{daysSinceLastLog} days</strong> since your last log
               (recorded on {getLastLogDate()?.log_date}).
             </p>
-            <p className="text-amber-700 text-xs mt-1 italic">
+            <p className="text-red-700 text-xs mt-1 italic">
               Threshold: {threshold} days
             </p>
           </div>
@@ -514,18 +576,24 @@ function CalendarView({ userId }) {
               new Date().getMonth() === currentDate.getMonth() &&
               new Date().getFullYear() === currentDate.getFullYear();
 
+            const logData = getLogForDate(day);
+
             return (
               <button
                 key={day}
-                onClick={() => setSelectedDate(day)}
-                className={`aspect-square rounded-lg flex items-center justify-center text-sm font-medium relative
+                onClick={() => {
+                  setSelectedDate(day);
+                  const existingLog = getLogForDate(day);
+                  setEditCount(existingLog ? existingLog.count : 1);
+                }}
+                className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm font-medium relative
                   ${isLogged ? 'bg-teal-100 text-teal-700 hover:bg-teal-200' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'}
                   ${isToday ? 'ring-2 ring-teal-500' : ''}
                 `}
               >
-                {day}
-                {isLogged && (
-                  <Check className="absolute top-1 right-1" size={12} />
+                <span className={isLogged && logData?.count ? 'text-xs' : ''}>{day}</span>
+                {isLogged && logData?.count && (
+                  <span className="text-xs font-bold text-teal-800">×{logData.count}</span>
                 )}
               </button>
             );
@@ -539,23 +607,73 @@ function CalendarView({ userId }) {
             <h3 className="text-lg font-semibold mb-4 text-gray-800">
               {monthName.split(' ')[0]} {selectedDate}
             </h3>
-            <p className="text-gray-600 mb-6">
-              {isDateLogged(selectedDate) ? 'Remove this log?' : 'Log entry for this date?'}
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => toggleLog(selectedDate)}
-                className="flex-1 bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700"
-              >
-                {isDateLogged(selectedDate) ? 'Remove' : 'Add Log'}
-              </button>
-              <button
-                onClick={() => setSelectedDate(null)}
-                className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-            </div>
+
+            {isDateLogged(selectedDate) ? (
+              <>
+                <p className="text-gray-600 mb-4">Edit log count:</p>
+                <div className="flex items-center justify-center gap-4 mb-6">
+                  <button
+                    onClick={() => setEditCount(Math.max(1, editCount - 1))}
+                    className="w-12 h-12 bg-gray-200 rounded-lg hover:bg-gray-300 text-2xl font-bold text-gray-700"
+                  >
+                    −
+                  </button>
+                  <span className="text-3xl font-bold text-gray-800 w-12 text-center">
+                    {editCount}
+                  </span>
+                  <button
+                    onClick={() => setEditCount(editCount + 1)}
+                    className="w-12 h-12 bg-gray-200 rounded-lg hover:bg-gray-300 text-2xl font-bold text-gray-700"
+                  >
+                    +
+                  </button>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={() => updateLogCount(selectedDate)}
+                    className="w-full bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700 font-medium"
+                  >
+                    Change Log Count
+                  </button>
+                  <button
+                    onClick={() => deleteLog(selectedDate)}
+                    className="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 font-medium"
+                  >
+                    Delete Log
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedDate(null);
+                      setEditCount(1);
+                    }}
+                    className="w-full bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-gray-600 mb-6">Log entry for this date?</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => addLog(selectedDate)}
+                    className="flex-1 bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700 font-medium"
+                  >
+                    Add Log
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedDate(null);
+                      setEditCount(1);
+                    }}
+                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
