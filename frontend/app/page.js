@@ -1,6 +1,6 @@
 'use client'
 import React, { useState, useEffect } from 'react';
-import { Calendar, Settings, LogOut, Check, X, Bell } from 'lucide-react';
+import { Calendar, Settings, LogOut, Check, X, Bell, TrendingUp, Home } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 // ============================================================================
@@ -44,6 +44,14 @@ const createMockSupabaseClient = () => {
       select: (columns = '*') => ({
         eq: (column, value) => ({
           single: async () => {
+            await new Promise(resolve => setTimeout(resolve, 200));
+            if (table === 'profiles') {
+              const profile = mockProfiles.find(p => p.id === value);
+              return { data: profile || null, error: null };
+            }
+            return { data: null, error: null };
+          },
+          maybeSingle: async () => {
             await new Promise(resolve => setTimeout(resolve, 200));
             if (table === 'profiles') {
               const profile = mockProfiles.find(p => p.id === value);
@@ -117,9 +125,6 @@ const createRealSupabaseClient = () => {
     return createMockSupabaseClient();
   }
 
-  // Note: In a real Next.js app, you would import from '@supabase/supabase-js'
-  // For this artifact, we'll fall back to mock
-  // return createMockSupabaseClient();
   return createClient(supabaseUrl, supabaseKey);
 };
 
@@ -131,7 +136,7 @@ const supabase = USE_MOCK_SUPABASE ? createMockSupabaseClient() : createRealSupa
 export default function RegularityApp() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('calendar'); // 'calendar', 'settings', 'auth'
+  const [view, setView] = useState('home');
 
   useEffect(() => {
     checkUser();
@@ -156,43 +161,62 @@ export default function RegularityApp() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-teal-50">
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-teal-50 pb-20">
       <nav className="bg-white shadow-sm border-b border-teal-100">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-teal-700">Regularity</h1>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setView('calendar')}
-              className={`p-2 rounded-lg ${view === 'calendar' ? 'bg-teal-100 text-teal-700' : 'text-gray-600 hover:bg-gray-100'}`}
-            >
-              <Calendar size={20} />
-            </button>
-            <button
-              onClick={() => setView('settings')}
-              className={`p-2 rounded-lg ${view === 'settings' ? 'bg-teal-100 text-teal-700' : 'text-gray-600 hover:bg-gray-100'}`}
-            >
-              <Settings size={20} />
-            </button>
-            <button
-              onClick={async () => {
-                await supabase.auth.signOut();
-                setUser(null);
-              }}
-              className="p-2 rounded-lg text-gray-600 hover:bg-gray-100"
-            >
-              <LogOut size={20} />
-            </button>
-          </div>
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              setUser(null);
+            }}
+            className="p-2 rounded-lg text-gray-600 hover:bg-gray-100"
+          >
+            <LogOut size={20} />
+          </button>
         </div>
       </nav>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        {view === 'calendar' ? (
-          <CalendarView userId={user.id} />
-        ) : (
-          <SettingsView userId={user.id} />
-        )}
+        {view === 'home' && <CalendarView userId={user.id} />}
+        {view === 'trends' && <TrendsView userId={user.id} />}
+        {view === 'settings' && <SettingsView userId={user.id} />}
       </main>
+
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="grid grid-cols-3 gap-1">
+            <button
+              onClick={() => setView('home')}
+              className={`flex flex-col items-center py-3 ${
+                view === 'home' ? 'text-teal-600' : 'text-gray-600'
+              }`}
+            >
+              <Home size={24} />
+              <span className="text-xs mt-1 font-medium">Home</span>
+            </button>
+            <button
+              onClick={() => setView('trends')}
+              className={`flex flex-col items-center py-3 ${
+                view === 'trends' ? 'text-teal-600' : 'text-gray-600'
+              }`}
+            >
+              <TrendingUp size={24} />
+              <span className="text-xs mt-1 font-medium">Trends</span>
+            </button>
+            <button
+              onClick={() => setView('settings')}
+              className={`flex flex-col items-center py-3 ${
+                view === 'settings' ? 'text-teal-600' : 'text-gray-600'
+              }`}
+            >
+              <Settings size={24} />
+              <span className="text-xs mt-1 font-medium">Settings</span>
+            </button>
+          </div>
+        </div>
+      </nav>
     </div>
   );
 }
@@ -246,7 +270,6 @@ function AuthScreen({ onAuthSuccess }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSubmit(e)}
-              // className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
             />
           </div>
@@ -258,7 +281,6 @@ function AuthScreen({ onAuthSuccess }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSubmit(e)}
-              // className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
             />
           </div>
@@ -357,11 +379,9 @@ function CalendarView({ userId }) {
     const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
     const dateStr = formatDate(date);
 
-    // Find all logs for this specific date
     const existingLogs = logs.filter(log => log.log_date === dateStr);
 
     if (existingLogs.length > 0) {
-      // OPTION A: Delete all logs for that day (Original "Toggle" behavior)
       await supabase
         .from('logs')
         .delete()
@@ -370,7 +390,6 @@ function CalendarView({ userId }) {
 
       setLogs(logs.filter(log => log.log_date !== dateStr));
     } else {
-      // OPTION B: Simply insert a new log (No 409 error will occur now)
       const { data, error } = await supabase
         .from('logs')
         .insert({
@@ -394,6 +413,7 @@ function CalendarView({ userId }) {
     );
     return sortedLogs[0];
   };
+
   const getDaysSinceLastLog = () => {
     const lastLog = getLastLogDate();
     if (!lastLog) return null;
@@ -437,17 +457,6 @@ function CalendarView({ userId }) {
           </div>
         </div>
       )}
-      {/* {showAlert && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-          <Bell className="text-amber-600 mt-1" size={20} />
-          <div>
-            <h3 className="font-semibold text-amber-900">Constipation Alert</h3>
-            <p className="text-amber-800 text-sm">
-              It's been {daysSinceLastLog} days since your last log. Consider consulting a healthcare provider if this continues.
-            </p>
-          </div>
-        </div>
-      )} */}
 
       {logs.length === 0 && (
         <div className="bg-teal-50 border border-teal-200 rounded-lg p-6 mb-6 text-center">
@@ -541,6 +550,165 @@ function CalendarView({ userId }) {
 }
 
 // ============================================================================
+// TRENDS VIEW
+// ============================================================================
+function TrendsView({ userId }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState(7);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [userId]);
+
+  const fetchLogs = async () => {
+    const { data, error } = await supabase
+      .from('logs')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (!error && data) {
+      setLogs(data);
+    }
+    setLoading(false);
+  };
+
+  const getChartData = () => {
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - timeRange + 1);
+
+    const dateMap = {};
+    
+    for (let i = 0; i < timeRange; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      const dateStr = formatDateForChart(date);
+      const logDateStr = formatLogDate(date);
+      dateMap[dateStr] = { date: dateStr, hasLog: 0, logDate: logDateStr };
+    }
+
+    logs.forEach(log => {
+      const logDate = new Date(log.log_date + 'T00:00:00');
+      if (logDate >= startDate && logDate <= now) {
+        const dateStr = formatDateForChart(logDate);
+        if (dateMap[dateStr]) {
+          dateMap[dateStr].hasLog = 1;
+        }
+      }
+    });
+
+    return Object.values(dateMap);
+  };
+
+  const formatDateForChart = (date) => {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${month}/${day}`;
+  };
+
+  const formatLogDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const chartData = getChartData();
+  const totalLogs = chartData.reduce((sum, d) => sum + d.hasLog, 0);
+  const percentageLogged = ((totalLogs / timeRange) * 100).toFixed(0);
+
+  if (loading) {
+    return <div className="text-center text-gray-600">Loading trends...</div>;
+  }
+
+  return (
+    <div>
+      <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+        <h2 className="text-2xl font-bold text-gray-800 mb-6">Activity Trends</h2>
+
+        <div className="flex gap-2 mb-6">
+          {[7, 14, 30].map(days => (
+            <button
+              key={days}
+              onClick={() => setTimeRange(days)}
+              className={`px-4 py-2 rounded-lg font-medium ${
+                timeRange === days
+                  ? 'bg-teal-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {days} days
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="bg-teal-50 rounded-lg p-4">
+            <p className="text-sm text-teal-700 font-medium">Days Logged</p>
+            <p className="text-3xl font-bold text-teal-900">{totalLogs}/{timeRange}</p>
+          </div>
+          <div className="bg-amber-50 rounded-lg p-4">
+            <p className="text-sm text-amber-700 font-medium">Consistency</p>
+            <p className="text-3xl font-bold text-amber-900">{percentageLogged}%</p>
+          </div>
+        </div>
+
+        <div className="relative h-64 bg-gray-50 rounded-lg p-4">
+          {/* Y-axis labels */}
+          <div className="absolute left-0 top-0 bottom-8 flex flex-col justify-between text-xs text-gray-600 pr-2">
+            <span>1</span>
+            <span>0</span>
+          </div>
+          
+          {/* Chart area */}
+          <div className="ml-6 h-full pb-8 relative">
+            {/* Grid lines */}
+            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+              <div className="border-t border-gray-300"></div>
+              <div className="border-t border-gray-300"></div>
+            </div>
+            
+            {/* Bar chart */}
+            <div className="absolute inset-0 flex items-end justify-between gap-1 px-2">
+              {chartData.map((item, index) => (
+                <div
+                  key={index}
+                  className={`flex-1 rounded-t transition-all duration-300 ${
+                    item.hasLog === 1 ? 'bg-teal-500' : 'bg-transparent'
+                  }`}
+                  style={{ 
+                    height: item.hasLog === 1 ? '100%' : '0%',
+                    minWidth: '4px'
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+          
+          {/* X-axis labels */}
+          <div className="flex justify-between ml-6 text-xs text-gray-600">
+            <span>{chartData[0]?.date}</span>
+            <span>{chartData[Math.floor(chartData.length / 2)]?.date}</span>
+            <span>{chartData[chartData.length - 1]?.date}</span>
+          </div>
+        </div>
+      </div>
+
+      {logs.length === 0 && (
+        <div className="bg-gray-50 rounded-lg p-6 text-center">
+          <p className="text-gray-600">No data yet. Start logging to see your trends!</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// SETTINGS VIEW
+// ============================================================================
+
+// ============================================================================
 // SETTINGS VIEW
 // ============================================================================
 function SettingsView({ userId }) {
@@ -602,7 +770,6 @@ function SettingsView({ userId }) {
             max="14"
             value={threshold}
             onChange={(e) => setThreshold(parseInt(e.target.value))}
-            // className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
             className="w-32 px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-teal-500"
           />
         </div>
