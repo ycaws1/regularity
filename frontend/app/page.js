@@ -246,27 +246,24 @@ export default function RegularityApp() {
           <div className="grid grid-cols-3 gap-1">
             <button
               onClick={() => setView('home')}
-              className={`flex flex-col items-center py-3 ${
-                view === 'home' ? 'text-teal-600' : 'text-gray-600'
-              }`}
+              className={`flex flex-col items-center py-3 ${view === 'home' ? 'text-teal-600' : 'text-gray-600'
+                }`}
             >
               <Home size={24} />
               <span className="text-xs mt-1 font-medium">Home</span>
             </button>
             <button
               onClick={() => setView('trends')}
-              className={`flex flex-col items-center py-3 ${
-                view === 'trends' ? 'text-teal-600' : 'text-gray-600'
-              }`}
+              className={`flex flex-col items-center py-3 ${view === 'trends' ? 'text-teal-600' : 'text-gray-600'
+                }`}
             >
               <TrendingUp size={24} />
               <span className="text-xs mt-1 font-medium">Trends</span>
             </button>
             <button
               onClick={() => setView('settings')}
-              className={`flex flex-col items-center py-3 ${
-                view === 'settings' ? 'text-teal-600' : 'text-gray-600'
-              }`}
+              className={`flex flex-col items-center py-3 ${view === 'settings' ? 'text-teal-600' : 'text-gray-600'
+                }`}
             >
               <Settings size={24} />
               <span className="text-xs mt-1 font-medium">Settings</span>
@@ -892,7 +889,7 @@ function TrendsView({ userId }) {
 
   useEffect(() => {
     fetchLogs();
-  }, [userId]);
+  }, [userId, timeRange]); // Refetch or re-process when range changes
 
   const fetchLogs = async () => {
     const { data, error } = await supabase
@@ -949,8 +946,17 @@ function TrendsView({ userId }) {
   };
 
   const chartData = getChartData();
-  const totalLogs = chartData.reduce((sum, d) => sum + d.hasLog, 0);
-  const percentageLogged = ((totalLogs / timeRange) * 100).toFixed(0);
+  const totalDaysLogged = chartData.reduce((sum, d) => sum + d.hasLog, 0);
+  const percentageLogged = ((totalDaysLogged / timeRange) * 100).toFixed(0);
+  const maxCount = Math.max(...chartData.map(d => d.count), 1);
+  
+  const consistencyValue = (totalDaysLogged / timeRange) * 100;
+  const getConsistencyColor = (val) => {
+    if (val < 20) return { bg: 'bg-red-50', text: 'text-red-700', deepText: 'text-red-900' };
+    if (val < 50) return { bg: 'bg-yellow-50', text: 'text-yellow-700', deepText: 'text-yellow-900' };
+    return { bg: 'bg-teal-50', text: 'text-teal-700', deepText: 'text-teal-900' };
+  };
+  const colors = getConsistencyColor(consistencyValue);
 
   if (loading) {
     return <div className="text-center text-gray-600">Loading trends...</div>;
@@ -966,11 +972,10 @@ function TrendsView({ userId }) {
             <button
               key={days}
               onClick={() => setTimeRange(days)}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                timeRange === days
+              className={`px-4 py-2 rounded-lg font-medium ${timeRange === days
                   ? 'bg-teal-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+                }`}
             >
               {days} days
             </button>
@@ -980,63 +985,73 @@ function TrendsView({ userId }) {
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-teal-50 rounded-lg p-4">
             <p className="text-sm text-teal-700 font-medium">Days Logged</p>
-            <p className="text-3xl font-bold text-teal-900">{totalLogs}/{timeRange}</p>
+            <p className="text-3xl font-bold text-teal-900">{totalDaysLogged}/{timeRange}</p>
           </div>
-          <div className="bg-amber-50 rounded-lg p-4">
+          <div className={`${colors.bg} rounded-lg p-4 transition-colors duration-500`}>
+            <p className={`text-sm ${colors.text} font-medium`}>Consistency</p>
+            <p className={`text-3xl font-bold ${colors.deepText}`}>{percentageLogged}%</p>
+          </div>
+          {/* <div className="bg-amber-50 rounded-lg p-4">
             <p className="text-sm text-amber-700 font-medium">Consistency</p>
             <p className="text-3xl font-bold text-amber-900">{percentageLogged}%</p>
-          </div>
+          </div> */}
         </div>
 
         <div className="relative h-64 bg-gray-50 rounded-lg p-4">
-          {/* Y-axis labels */}
-          <div className="absolute left-0 top-0 bottom-8 flex flex-col justify-between text-xs text-gray-600 pr-2">
-            <span>1</span>
+          {/* Y-axis labels based on maxCount */}
+          <div className="absolute left-0 top-0 bottom-8 flex flex-col justify-between text-xs text-gray-600 pr-2 w-6 text-right">
+            <span>{maxCount}</span>
+            <span>{Math.floor(maxCount / 2)}</span>
             <span>0</span>
           </div>
-          
+
           {/* Chart area */}
-          <div className="ml-6 h-full pb-8 relative">
+          <div className="ml-8 h-full pb-8 relative">
             {/* Grid lines */}
             <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-              <div className="border-t border-gray-300"></div>
-              <div className="border-t border-gray-300"></div>
+              <div className="border-t border-gray-200 w-full"></div>
+              <div className="border-t border-dashed border-gray-200 w-full"></div>
+              <div className="border-t border-gray-300 w-full"></div>
             </div>
-            
+
             {/* Bar chart */}
             <div className="absolute inset-0 flex items-end justify-between gap-1 px-2">
-              {chartData.map((item, index) => (
-                <div
-                  key={index}
-                  className="flex-1 relative h-full"
-                  style={{ minWidth: '4px' }}
-                >
-                  <div className="absolute bottom-0 left-0 right-0 flex items-end h-full">
-                    <div
-                      onMouseEnter={() => setHoveredBar(index)}
-                      onMouseLeave={() => setHoveredBar(null)}
-                      className={`w-full rounded-t transition-all duration-300 ${
-                        item.hasLog === 1 ? 'bg-teal-500 hover:bg-teal-600 cursor-pointer' : 'bg-transparent'
-                      }`}
-                      style={{
-                        height: item.hasLog === 1 ? '100%' : '0%'
-                      }}
-                    />
-                  </div>
-                  {hoveredBar === index && item.hasLog === 1 && (
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10 pointer-events-none">
-                      <div className="font-semibold">{item.logDate}</div>
-                      <div>Count: {item.count}</div>
-                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+              {chartData.map((item, index) => {
+                // Calculate height as a percentage of the maxCount
+                const barHeight = item.count > 0 ? (item.count / maxCount) * 100 : 0;
+
+                return (
+                  <div
+                    key={index}
+                    className="flex-1 relative h-full"
+                    style={{ minWidth: '4px' }}
+                  >
+                    <div className="absolute bottom-0 left-0 right-0 flex items-end h-full">
+                      <div
+                        onMouseEnter={() => setHoveredBar(index)}
+                        onMouseLeave={() => setHoveredBar(null)}
+                        className={`w-full rounded-t transition-all duration-500 ease-out ${item.count > 0 ? 'bg-teal-500 hover:bg-teal-600 cursor-pointer' : 'bg-transparent'
+                          }`}
+                        style={{
+                          height: `${barHeight}%`
+                        }}
+                      />
                     </div>
-                  )}
-                </div>
-              ))}
+                    {hoveredBar === index && item.count > 0 && (
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10 pointer-events-none">
+                        <div className="font-semibold">{item.logDate}</div>
+                        <div>Count: {item.count}</div>
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
-          
+
           {/* X-axis labels */}
-          <div className="flex justify-between ml-6 text-xs text-gray-600">
+          <div className="flex justify-between ml-8 text-xs text-gray-600">
             <span>{chartData[0]?.date}</span>
             <span>{chartData[Math.floor(chartData.length / 2)]?.date}</span>
             <span>{chartData[chartData.length - 1]?.date}</span>
@@ -1053,9 +1068,6 @@ function TrendsView({ userId }) {
   );
 }
 
-// ============================================================================
-// SETTINGS VIEW
-// ============================================================================
 
 // ============================================================================
 // SETTINGS VIEW
