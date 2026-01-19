@@ -22,7 +22,8 @@ export const metadata = {
     apple: '/apple-touch-icon.png',
     other: [
       { rel: 'manifest', url: '/site.webmanifest' },
-    ],
+    ]
+  },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
