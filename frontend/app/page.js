@@ -907,6 +907,7 @@ function TrendsView({ userId }) {
     const now = new Date();
     const startDate = new Date(now);
     startDate.setDate(startDate.getDate() - timeRange + 1);
+    startDate.setHours(0, 0, 0, 0);
 
     const dateMap = {};
 
